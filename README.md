@@ -55,7 +55,12 @@ Imagine you are now at your day job, trying to help your company deprecate some 
 
 ## Caveats
 
-All the usual caveats about github's code search capability apply. It doesn't search branches and they *still* don't support exact text match search. They only allow queries on the first 1000 results, so for searches with a very large number of high scoring search results, the list of repos can't be guaranteed to be exhaustive. 
+All the usual caveats about github's code search capability apply. It doesn't search branches and they *still* don't support exact text match search. You can get pretty close with some careful quoting, i.e.:
+```
+./ghg -v "\"com.company.foo\""
+```
+
+They only allow queries on the first 1000 results, so for searches with a very large number of high scoring search results, the list of repos can't be guaranteed to be exhaustive. 
 
 When this tool pages through results, it has the potential to exceed github's rate limiting. Currently this results in an unhelpful error (`jq: error (at <stdin>:1): Cannot iterate over null (null)`) which I plan to improve. 
 
