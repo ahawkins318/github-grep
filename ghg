@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+function usage {
+    echo "usage: $0 [-rvh] [query]"
+    echo "  -r      show raw search results"
+    echo "  -v      verbose"
+    echo "  -h      display this help message"
+    exit 1
+}
+
+while getopts 'hrv' option; do
+  case "${option}" in 
+    r) RAW=true
+       ;;
+    v) VERBOSE=true
+       ;;
+    h) echo "$(usage)"
+       exit
+       ;;
+    :) printf "missing argument for -%s\n" "$OPTARG" >&2
+       echo "$(usage)" >&2
+       exit 1
+       ;;
+    \?) printf "illegal option: -%s\n" "$OPTARG" >&2
+        echo "$(usage)" >&2
+        exit 1
+        ;;
+    esac
+done
+
+shift $((OPTIND -1))
+
+if [ $VERBOSE ]; then
+  if [ -n $1 ]; then echo "query='$1'"; else echo "query=<EMPTY>"; fi
+  if [ -n $GITHUB_USER ]; then echo "GITHUB_USER=$GITHUB_USER"; else echo "GITHUB_USER=<NOT SET>"; fi
+  if [ -n $GITHUB_ORG ]; then echo "GITHUB_ORG=$GITHUB_ORG"; else echo "GITHUB_ORG=<NOT SET>"; fi
+  if [ -n $GITHUB_TOKEN ]; then echo "GITHUB_TOKEN=<set>"; else echo "GITHUB_TOKEN=<NOT SET>"; fi
+fi
+
+if [ -n $1 ] && [ -n $GITHUB_USER ] && [ -n $GITHUB_TOKEN ]; then
+  # build query
+  HEADER="Accept: application/vnd.github.v3+json"
+  if [ -n $GITHUB_ORG ]; then Q="$1+org:$GITHUB_ORG"; else Q=$1; fi
+  QUERY="https://api.github.com/search/code?q=$Q&per_page=100"  
+  CURL="curl -s -u $GITHUB_USER:$GITHUB_TOKEN -H \"$HEADER\" -G "
+
+  # get first page of results
+  if [ $VERBOSE ]; then echo "$CURL $QUERY"; fi
+  BLOB=$($CURL $QUERY)
+  
+  # determine if there are more pages
+  COUNT=$(echo $BLOB | jq -r '.total_count')
+  LASTPG=$(echo "scale=0 ; ($COUNT / 100) + 1" | bc) 
+  if [ $LASTPG -gt 10 ]; then LASTPG=10; fi
+
+  # get the rest of the pages and append them
+  for ((i = 2 ; i <= $LASTPG ; i++)); do
+    if [ $VERBOSE ]; then echo "$CURL $QUERY&page=$i"; fi
+    BLOB="$BLOB"$($CURL "$QUERY&page=$i")
+  done
+  
+  # display results
+  if [ $RAW ]; then 
+    echo $BLOB 
+  else 
+    echo $BLOB | jq -cr '.items[] | .repository.name' | sort -u
+  fi  
+else
+  echo "$usage"
+fi
+
